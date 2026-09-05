@@ -11,11 +11,24 @@ balance compactness, ease of use, and good taste.
 
 ## Usage
 
-```
-zkid [options] [<datetime>]
+### CLI
 
-TODO: options
+TODO
 
+### API
+
+#### Go
+
+```go
+
+type ZkidFormat struct {
+    Century uint16
+    Separator rune
+    SeparatorDepth uint8
+}
+
+func Encode(time Time, format ZkidFormat) (string, error)
+func Decode(string, format ZkidFormat) (Time, error)
 
 ```
 
@@ -27,54 +40,73 @@ TODO: options
 - Separation of fields (a single character corresponds to exactly one field)
 - Taste & aesthetics.
 
-## Usage
-
-### CLI
-
-TODO
-
-### API
-
-TODO
-
 ## Design
 
-The full format looks like:
+Years are written in base 10. All other digits are written in base62.
+
+A typical compact timestamp looks like:
 
 ```
-YYYYMD-HMS.FFFFFF
+YYMDhm
+908F6e (August 15th 1990, 06:40AM)
 ```
 
-The minimal compaction looks like:
+A typical full timestamp looks like:
 
 ```
-YYMD-H
+YYYYMDhm.sffffff
+19908F6e.8gVA0d4 (August 15th 1990, 06:40AM)
+
+YYYY:   year
+M:      month
+D:      day
+h:      hour
+m:      minute
+s:      second
+f:      subsecond fraction (1 / 60)
 ```
 
-### Observations
+### subformats
 
-- Since compaction is possible on either side of the string, the hyphen separator
-  is necessary to disambiguate between year digits and second / subsecond digits.
-- A year string may be arbitrarily long, but by the time we get to the order of
-  centuries, the digits are less and less useful because they are implicit to the
-  historical context.  It will almost always be straightforward to infer the
-  higher order digits of a year marker.
-    - We can choose an "epoch" year (not necessarily 1970), which defines any
-      higher order digits which are omitted.
-    - If the year string is 23 and the epoch is 1900, the actual year is 1923.
-    - If the year string is 023 and the epoch is 2100, the actual year is 2023.
-    - the last two digits of the epoch are vestigial, but still included for
-      clarity.
-    - It is trivial to convert timestamps of one epoch to another, and only
-      requires operating on the year characters.
-- Once a timestamp is down to the hour resolution, every subsequent digit is a
-  subdivision by 60 (60 minutes in an hour, 60 seconds in a minute).  This can be
-  extended arbitrarily into subsecond divisions (60th of a second, 3600th of a
-  second, etc).
-    - a 60th of a second is a nice unit to work in.  It's roughly one frame of
-      a well-optimized video game or desktop application.  It's small enough that
-      it is highly unlikely that human input would be fast enough to lead to an
-      ID collision.
+zkid is a group of formats.  The current default zkid format is `zkid 20.1`.
+zkid formats are written:
+
+```
+CCsd
+
+CC: epoch century
+    19: year 1900
+    20: year 2000
+    21: year 2100
+s: separator char
+    . YYMDhm.sffffff
+    - YYMDhm-sffffff
+    : YYMDhm:sffffff
+d: separator depth
+    1: YYMDhm.sffffff
+    2: YYMDhms.ffffff
+    3: YYMDhmsf.fffff
+```
+
+These variables determine the specifics of how zkid strings are generated and
+interpreted.
+
+### elide millenium and century by default
+
+These digits of the year can almost always be inferred from situational
+context.  If the cannot, is easy enough to make them explicit retroactively.
+
+### elide seconds and milliseconds by default
+
+It is uncommon to need to know the exact second a note was created.  The
+primary purpose of seconds and fractional seconds is to deduplicate notes made
+in the same minute.
+
+### second to the right of separator
+
+Separator divides mandatory digits from non-mandatory right digits.  One
+separator is sufficient to disambiguate extra year digits, and may be elided
+almost all of the time.
 
 ### Base60 Digits
 
@@ -82,32 +114,29 @@ We achieve a compact representation space by converting all digits except for
 years to base60 (truncated hex base62).  This encoding has a number of
 desirable properties:
 
-- numeric digits stay the same
+- single digit numbers are stable
 - naturally follows ascii order (lexicographic sort is stable)
 - intuitively simple
 - covers full range of necessary values
+- datestamps and hours map naturally to hex32 (case independent)
 
-### Years
+### Subsecond fractions in base 60
+
+After the hour digit, all subsequent digits (minute, second, subsecond)
+represent a 60th of the time unit that came before.  Extending this into
+subseconds is intuitive, and in almost all cases only the first subsecond digit
+would ever be necessary.
+
+
+### epochs
+
+The epoch year is determined by the epoch century of the zkid format.
 
 Years are digits written in base 10.  All but the two lowest order digits may
 be truncated if they match the epoch.
 
 - If epoch is 2000 and the year is 2026, it is written 26
-- If epoch is 1970 and the year is 2026, it is written 2026
+- If epoch is 1900 and the year is 2026, it is written 2026
 
 If for whatever reason the year needs to be extended beyond 9999, additional
 year digits may be added ad infinitum.
-
-### Grammar
-
-``` <zkid> ::= <year> <month> <day> <sep1> <hour> <minute> <second> <sep2>
-<subsec>
-
-<year> ::= <digit10> <digit10>+ <month> ::= <digit60> <day> ::= <digit60>
-
-<hour> ::= <digit60> <minute> ::= <digit60> <second> ::= <digit60>
-
-<subsec> ::= <digit60>+
-
-```
-
