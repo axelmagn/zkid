@@ -70,7 +70,36 @@ func main() {
 				fmt.Fprintf(os.Stderr, "error decoding %q: %v\n", line, err)
 				os.Exit(1)
 			}
-			fmt.Println(decoded.Format(time.RFC3339Nano))
+			fmt.Println(decoded.Format(time.DateTime))
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "error reading standard input: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	stat, err := os.Stdin.Stat()
+	hasStdin := err == nil && (stat.Mode()&os.ModeCharDevice) == 0
+
+	if hasStdin {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			t, err := time.ParseInLocation(time.DateTime, line, loc)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error parsing datetime %q: %v\n", line, err)
+				os.Exit(1)
+			}
+			encoded, err := zkid.Encode(t, format, uint8(minYearWidth), uint8(rightPrecision))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error encoding %q: %v\n", line, err)
+				os.Exit(1)
+			}
+			fmt.Println(encoded)
 		}
 		if err := scanner.Err(); err != nil {
 			fmt.Fprintf(os.Stderr, "error reading standard input: %v\n", err)
