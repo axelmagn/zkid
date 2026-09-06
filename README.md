@@ -49,12 +49,12 @@ TODO
 
 type ZkidFormat struct {
     Century uint16
-    Separator rune
+    Separator byte
     SeparatorDepth uint8
 }
 
-func Encode(time Time, format ZkidFormat, minYearDigits uint8, rightPrecision uint8) (string, error)
-func Decode(string, format ZkidFormat) (Time, error)
+func Encode(t time.Time, format ZkidFormat, minYearWidth uint8, rightPrecision uint8) (string, error)
+func Decode(s string, format ZkidFormat, loc *time.Location) (time.Time, error)
 
 ```
 

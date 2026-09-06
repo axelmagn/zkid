@@ -3,12 +3,9 @@ package zkid
 import (
 	"errors"
 	"fmt"
-	// "math"
-	// "strconv"
+	"math"
 	"strings"
 	"time"
-	// "unicode"
-	// "unicode/utf8"
 )
 
 var (
@@ -187,4 +184,144 @@ func Encode(t time.Time, format ZkidFormat, minYearWidth uint8, rightPrecision u
 	}
 
 	return outSb.String(), nil
+}
+
+// Decode decodes a ZKID string into a time.Time using the specified format and location.
+func Decode(s string, format ZkidFormat, loc *time.Location) (time.Time, error) {
+	if loc == nil {
+		return time.Time{}, ErrInvalidFormat
+	}
+
+	if format.Separator < 33 || format.Separator > 126 || decodeBase62Table[format.Separator] != -1 {
+		return time.Time{}, ErrInvalidSeparator
+	}
+
+	if format.SeparatorDepth == 0 {
+		return time.Time{}, ErrInvalidFormat
+	}
+
+	var leftStr, rightSuffix string
+	sepCount := strings.Count(s, string(format.Separator))
+	if sepCount > 1 {
+		return time.Time{}, ErrInvalidTimestamp
+	} else if sepCount == 1 {
+		parts := strings.Split(s, string(format.Separator))
+		leftStr = parts[0]
+		rightSuffix = parts[1]
+		if len(rightSuffix) == 0 {
+			return time.Time{}, ErrInvalidTimestamp
+		}
+	} else {
+		leftStr = s
+		rightSuffix = ""
+	}
+
+	minLeftLen := 1 + 3 + int(format.SeparatorDepth)
+	if len(leftStr) < minLeftLen {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+
+	yearStrEnd := len(leftStr) - 3 - int(format.SeparatorDepth)
+	yearStr := leftStr[:yearStrEnd]
+	monthChar := leftStr[yearStrEnd]
+	dayChar := leftStr[yearStrEnd+1]
+	hourChar := leftStr[yearStrEnd+2]
+	rightPrefix := leftStr[yearStrEnd+3:]
+
+	for i := 0; i < len(yearStr); i++ {
+		if yearStr[i] < '0' || yearStr[i] > '9' {
+			return time.Time{}, ErrInvalidTimestamp
+		}
+	}
+
+	epoch := format.Century * 100
+	epochStr := fmt.Sprintf("%d", epoch)
+	var fullYearStr string
+	if len(yearStr) < len(epochStr) {
+		fullYearStr = epochStr[:len(epochStr)-len(yearStr)] + yearStr
+	} else {
+		fullYearStr = yearStr
+	}
+
+	var year int
+	_, err := fmt.Sscanf(fullYearStr, "%d", &year)
+	if err != nil {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+
+	monthVal, err := decodeBase62(monthChar)
+	if err != nil {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+	if monthVal < 1 || monthVal > 12 {
+		return time.Time{}, ErrDateOutOfRange
+	}
+
+	dayVal, err := decodeBase62(dayChar)
+	if err != nil {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+	if dayVal < 1 || dayVal > 31 {
+		return time.Time{}, ErrDateOutOfRange
+	}
+
+	hourVal, err := decodeBase62(hourChar)
+	if err != nil {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+	if hourVal > 23 {
+		return time.Time{}, ErrDateOutOfRange
+	}
+
+	fullRightStr := rightPrefix + rightSuffix
+	if len(fullRightStr) == 0 {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+
+	minVal, err := decodeBase62(fullRightStr[0])
+	if err != nil {
+		return time.Time{}, ErrInvalidTimestamp
+	}
+	if minVal > 59 {
+		return time.Time{}, ErrDateOutOfRange
+	}
+
+	var secVal byte = 0
+	if len(fullRightStr) > 1 {
+		secVal, err = decodeBase62(fullRightStr[1])
+		if err != nil {
+			return time.Time{}, ErrInvalidTimestamp
+		}
+		if secVal > 59 {
+			return time.Time{}, ErrDateOutOfRange
+		}
+	}
+
+	var nsec int = 0
+	if len(fullRightStr) > 2 {
+		var nanos float64 = 0
+		var resolution float64 = 1_000_000_000
+		for i := 2; i < len(fullRightStr); i++ {
+			resolution /= 60.0
+			digitVal, err := decodeBase62(fullRightStr[i])
+			if err != nil {
+				return time.Time{}, ErrInvalidTimestamp
+			}
+			if digitVal > 59 {
+				return time.Time{}, ErrDateOutOfRange
+			}
+			nanos += float64(digitVal) * resolution
+		}
+		nsec = int(math.Round(nanos))
+		if nsec >= 1_000_000_000 {
+			nsec = 999_999_999
+		}
+	}
+
+	t := time.Date(year, time.Month(monthVal), int(dayVal), int(hourVal), int(minVal), int(secVal), nsec, loc)
+	if t.Month() != time.Month(monthVal) || t.Day() != int(dayVal) {
+		return time.Time{}, ErrDateOutOfRange
+	}
+
+	return t, nil
 }

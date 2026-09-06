@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/axelmagn/zkid/zkid-go"
@@ -11,12 +13,17 @@ import (
 
 func main() {
 	var (
+		decode         bool
+		utc            bool
 		rightPrecision uint
 		minYearWidth   uint
 		century        uint
 		separator      string
 		separatorDepth uint
 	)
+
+	flag.BoolVar(&decode, "decode", false, "Decode ZKID timestamp slug(s) from standard input")
+	flag.BoolVar(&utc, "utc", false, "Use UTC timezone instead of local")
 
 	flag.UintVar(&rightPrecision, "precision", 0, "Right precision digits")
 	flag.UintVar(&rightPrecision, "p", 0, "Right precision digits (shorthand)")
@@ -46,7 +53,34 @@ func main() {
 		SeparatorDepth: uint8(separatorDepth),
 	}
 
-	encoded, err := zkid.Encode(time.Now(), format, uint8(minYearWidth), uint8(rightPrecision))
+	loc := time.Local
+	if utc {
+		loc = time.UTC
+	}
+
+	if decode {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			decoded, err := zkid.Decode(line, format, loc)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error decoding %q: %v\n", line, err)
+				os.Exit(1)
+			}
+			fmt.Println(decoded.Format(time.RFC3339Nano))
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "error reading standard input: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	now := time.Now().In(loc)
+	encoded, err := zkid.Encode(now, format, uint8(minYearWidth), uint8(rightPrecision))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
