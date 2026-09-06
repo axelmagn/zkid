@@ -249,3 +249,7 @@ timestamp is undefined by the specification. When decoding programmatically
 (such as into a `time.Time` structure), the timezone/location must be explicitly
 supplied by the consuming application or runtime context.
 
+## AI Disclosure
+
+- This project does not use AI assistants for core design or implementation authorship
+- This project accepts moderate AI use for test generation, refactoring, prototyping, and bug investigation
