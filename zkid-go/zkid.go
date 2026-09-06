@@ -15,7 +15,6 @@ var (
 	ErrInvalidFormat    = errors.New("invalid zkid format")
 	ErrInvalidTimestamp = errors.New("invalid zkid timestamp")
 	ErrInvalidSeparator = errors.New("invalid separator character")
-	ErrYearOutOfRange   = errors.New("year out of range (must be 1..9999)")
 	ErrDateOutOfRange   = errors.New("date or time component out of range")
 )
 
@@ -64,10 +63,25 @@ func decodeBase62(b byte) (byte, error) {
 
 // Encode encodes a time.Time into a ZKID string using the given format.
 func Encode(t time.Time, format ZkidFormat, minYearWidth uint8, rightPrecision uint8) (string, error) {
-	// TODO: input validation
-
 	year := t.Year()
-	// TODO: assert year <= 9999
+	if year < 0 ||
+		t.Month() < 1 || t.Month() > 12 ||
+		t.Day() < 1 || t.Day() > 31 ||
+		t.Hour() < 0 || t.Hour() > 23 ||
+		t.Minute() < 0 || t.Minute() > 59 ||
+		t.Second() < 0 || t.Second() > 59 ||
+		t.Nanosecond() < 0 || t.Nanosecond() >= 1_000_000_000 {
+		return "", ErrDateOutOfRange
+	}
+
+	if format.Separator < 33 || format.Separator > 126 || decodeBase62Table[format.Separator] != -1 {
+		return "", ErrInvalidSeparator
+	}
+
+	if uint16(format.SeparatorDepth)+uint16(rightPrecision) > 255 {
+		return "", ErrInvalidFormat
+	}
+
 	yearStr := fmt.Sprintf("%d", year)
 
 	epoch := format.Century * 100
