@@ -9,6 +9,32 @@ timestamp is the entirety of the filename.
 ZKID generates highly compact timestamp that remain human readable.  It aims to
 balance compactness, ease of use, and good taste.
 
+## Format
+
+Years are written in base 10. All other digits are written in base62.
+
+A typical compact timestamp looks like:
+
+```
+YYMDhm
+908F6e (August 15th 1990, 06:40AM)
+```
+
+A typical full timestamp looks like:
+
+```
+YYYYMDhm-sffffff
+19908F6e-8gVA0d4 (August 15th 1990, 06:40AM)
+
+YYYY:   year
+M:      month
+D:      day
+h:      hour
+m:      minute
+s:      second
+f:      subsecond fraction (1 / 60)
+```
+
 ## Usage
 
 ### CLI
@@ -27,7 +53,7 @@ type ZkidFormat struct {
     SeparatorDepth uint8
 }
 
-func Encode(time Time, format ZkidFormat) (string, error)
+func Encode(time Time, format ZkidFormat, minYearDigits uint8, rightPrecision uint8) (string, error)
 func Decode(string, format ZkidFormat) (Time, error)
 
 ```
@@ -42,33 +68,9 @@ func Decode(string, format ZkidFormat) (Time, error)
 
 ## Design
 
-Years are written in base 10. All other digits are written in base62.
-
-A typical compact timestamp looks like:
-
-```
-YYMDhm
-908F6e (August 15th 1990, 06:40AM)
-```
-
-A typical full timestamp looks like:
-
-```
-YYYYMDhm.sffffff
-19908F6e.8gVA0d4 (August 15th 1990, 06:40AM)
-
-YYYY:   year
-M:      month
-D:      day
-h:      hour
-m:      minute
-s:      second
-f:      subsecond fraction (1 / 60)
-```
-
 ### subformats
 
-zkid is a group of formats.  The current default zkid format is `zkid 20.1`.
+zkid is a group of formats.  The current default zkid format is `zkid 20-1`.
 zkid formats are written:
 
 ```
@@ -79,8 +81,8 @@ CC: epoch century
     20: year 2000
     21: year 2100
 s: separator char
-    . YYMDhm.sffffff
     - YYMDhm-sffffff
+    . YYMDhm.sffffff
     : YYMDhm:sffffff
 d: separator depth
     1: YYMDhm.sffffff
@@ -108,10 +110,10 @@ Separator divides mandatory digits from non-mandatory right digits.  One
 separator is sufficient to disambiguate extra year digits, and may be elided
 almost all of the time.
 
-### Base60 Digits
+### Base62 Digits
 
 We achieve a compact representation space by converting all digits except for
-years to base60 (truncated hex base62).  This encoding has a number of
+years to base62.  This encoding has a number of
 desirable properties:
 
 - single digit numbers are stable
@@ -140,3 +142,9 @@ be truncated if they match the epoch.
 
 If for whatever reason the year needs to be extended beyond 9999, additional
 year digits may be added ad infinitum.
+
+### decoding
+
+when decoding, all elided year digits are assumed to match those of the epoch
+year.  all elided right-precision bits are assumed to be zero.
+
