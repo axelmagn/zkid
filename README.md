@@ -88,7 +88,7 @@ echo "268F6e" | zkid -decode
 - `-decode`: Decode ZKID timestamp slug(s) from standard input.
 - `-c`, `-fmt-century <n>`: Format epoch century (default: `20`).
 - `-s`, `-fmt-separator <char>`: Format separator character (default: `-`).
-- `-d`, `-fmt-depth <n>`: Format separator depth from hour mark (default: `1`).
+- `-d`, `-fmt-depth <n>`: Format separator depth (default: `4`).
 
 ### API
 
@@ -109,7 +109,7 @@ import (
 )
 
 func main() {
-	// Encode current time using default format (zkid 20-1)
+	// Encode current time using default format (zkid 20-4)
 	slug, err := zkid.Encode(time.Now(), zkid.DefaultFormat, 2, 0)
 	if err != nil {
 		panic(err)
@@ -129,13 +129,13 @@ func main() {
 type ZkidFormat struct {
 	Century        uint16 // Epoch century (default: 20 for year 2000)
 	Separator      byte   // Separator character (default: '-')
-	SeparatorDepth uint8  // Separator depth from hour mark (default: 1)
+	SeparatorDepth uint8  // Separator depth (default: 4)
 }
 
 var DefaultFormat = ZkidFormat{
 	Century:        20,
 	Separator:      '-',
-	SeparatorDepth: 1,
+	SeparatorDepth: 4,
 }
 
 func Encode(t time.Time, format ZkidFormat, minYearWidth uint8, rightPrecision uint8) (string, error)
@@ -146,7 +146,7 @@ func Decode(s string, format ZkidFormat, loc *time.Location) (time.Time, error)
 
 ### Subformats
 
-ZKID is a group of formats. The current default ZKID format is `zkid 20-1`.
+ZKID is a group of formats. The current default ZKID format is `zkid 20-4`.
 ZKID formats are written:
 
 ```
@@ -161,9 +161,13 @@ s: separator char
     . YYMDhm.sffffff
     : YYMDhm:sffffff
 d: separator depth
-    1: YYMDhm-sffffff
-    2: YYMDhms-ffffff
-    3: YYMDhmsf-fffff
+    0: YY-MDhm...
+    1: YYM-Dhm...
+    2: YYMD-hm...
+    3: YYMDh-m...
+    4: YYMDhm-sffffff
+    5: YYMDhms-ffffff
+    6: YYMDhmsf-fffff
 ```
 
 These variables determine the specifics of how ZKID strings are generated and
@@ -185,12 +189,6 @@ in the same minute.
 The separator divides mandatory digits from non-mandatory right-hand digits. One
 separator is sufficient to disambiguate extra year digits, and may be elided
 almost all of the time.
-
-The **separator depth** specifies how many sexagesimal fields after the hour mark
-appear to the left of the separator:
-- Depth `1` (default): Minute is left of the separator (`YYMDhm-sffffff`).
-- Depth `2`: Minute and second are left of the separator (`YYMDhms-ffffff`).
-- Depth `3`: Minute, second, and 1st fraction digit are left of the separator (`YYMDhmsf-fffff`).
 
 ### Base62 Digits and Field Ranges
 

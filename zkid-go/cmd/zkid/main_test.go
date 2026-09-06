@@ -119,3 +119,38 @@ func TestCliEncodeInvalidDateTime(t *testing.T) {
 		t.Errorf("Expected stderr to mention error parsing datetime, got: %s", stderr.String())
 	}
 }
+
+func TestCliEncodeCustomDepth(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "-d", "2", "-p", "2")
+	cmd.Stdin = strings.NewReader("2026-08-15 06:40:08\n")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("CLI execution failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	expected := "268F-6e\n"
+	if stdout.String() != expected {
+		t.Errorf("Expected output %q, got %q", expected, stdout.String())
+	}
+}
+
+func TestCliDecodeOmittedFields(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "-d", "2", "-decode")
+	cmd.Stdin = strings.NewReader("268F\n")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("CLI execution failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	expected := "2026-08-15 00:00:00\n"
+	if stdout.String() != expected {
+		t.Errorf("Expected output %q, got %q", expected, stdout.String())
+	}
+}
+
